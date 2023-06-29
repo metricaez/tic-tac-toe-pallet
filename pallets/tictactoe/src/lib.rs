@@ -44,9 +44,15 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored { something: u32, who: T::AccountId },
+		/// A game has been created.
+		GameCreated{game_index:u32},
+		/// A player has won a game.
+		GameWon{winner:T::AccountId, jackpot:BalanceOf<T>},
+	}
+
+	#[pallet::error]
+	pub enum Error<T> {
+		
 	}
 
 	#[pallet::storage]
