@@ -45,4 +45,8 @@ pub mod pallet {
 		/// parameters. [something, who]
 		SomethingStored { something: u32, who: T::AccountId },
 	}
+
+	#[pallet::storage]
+	#[pallet::getter(fn game_index)]
+	pub(crate) type GameIndex<T> = StorageValue<_, u32, ValueQuery>;
 }
