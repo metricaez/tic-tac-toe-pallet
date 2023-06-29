@@ -1,16 +1,19 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//Q: Why here and not inside pallet mod? Scope ?
-use frame_support::{traits::Currency, PalletId};
+use codec::{Decode, Encode, MaxEncodedLen};
+use scale_info::TypeInfo;
+
+use frame_support::{traits::Currency, PalletId, RuntimeDebug};
 
 pub use pallet::*;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-pub struct Game<T: Config> {
-	jackpot: Option<BalanceOf<T>>,
-	payout_addresses: (T::AccountId, T::AccountId),
+#[derive(Clone, Encode, Decode, Default, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+pub struct Game<Balance, AccountId> {
+	jackpot: Option<Balance>,
+	payout_addresses: (AccountId, AccountId),
 	ended: bool,
 }
 
@@ -49,4 +52,9 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn game_index)]
 	pub(crate) type GameIndex<T> = StorageValue<_, u32, ValueQuery>;
+ 
+	#[pallet::storage]
+	#[pallet::getter(fn games)]
+	pub(crate) type Games<T: Config> = StorageMap<_, Twox64Concat, u32, Game<BalanceOf<T>,T::AccountId>, OptionQuery>;
+	
 }
