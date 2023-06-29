@@ -25,7 +25,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
         Balances: pallet_balances,
-		TemplateModule: pallet_tictactoe,
+		Tictactoe: pallet_tictactoe,
 	}
 );
 
@@ -85,5 +85,11 @@ impl pallet_tictactoe::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	frame_system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+    let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![(1, 100), (2, 100), (3, 100), (4, 100), (5, 100)],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+	t.into()
 }
