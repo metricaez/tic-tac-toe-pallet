@@ -3,15 +3,23 @@
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
-use frame_support::{traits::Currency, PalletId, RuntimeDebug};
+use frame_support::{
+	sp_runtime::{traits::AccountIdConversion, DispatchError},
+	traits::{Currency, Get},
+	PalletId, RuntimeDebug,
+};
 
 pub use pallet::*;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-#[derive(Clone, Encode, Decode, Default, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen)]
+#[derive(
+	Clone, Encode, Decode, Default, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen,
+)]
+//TBD: If transfer of jackpot breaks due to existencial deposits, add fee param.
 pub struct Game<Balance, AccountId> {
+	bet: Option<Balance>,
 	jackpot: Option<Balance>,
 	payout_addresses: (AccountId, AccountId),
 	ended: bool,
@@ -45,22 +53,42 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A game has been created.
-		GameCreated{game_index:u32},
+		GameCreated { game_index: u32 },
 		/// A player has won a game.
-		GameWon{winner:T::AccountId, jackpot:BalanceOf<T>},
+		GameWon { winner: T::AccountId, jackpot: BalanceOf<T> },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
-		
+		IndexOverflow,
 	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn game_index)]
 	pub(crate) type GameIndex<T> = StorageValue<_, u32, ValueQuery>;
- 
+
 	#[pallet::storage]
 	#[pallet::getter(fn games)]
-	pub(crate) type Games<T: Config> = StorageMap<_, Twox64Concat, u32, Game<BalanceOf<T>,T::AccountId>, OptionQuery>;
-	
+	pub(crate) type Games<T: Config> =
+		StorageMap<_, Twox64Concat, u32, Game<BalanceOf<T>, T::AccountId>, OptionQuery>;
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T>{
+		#[pallet::call_index(0)]
+		#[pallet::weight(0)]
+		pub fn start_game (origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult{
+			Ok(())
+		}
+	}
+}
+
+impl<T: Config> Pallet<T> {
+	/// The account ID of the pallet which is the jackpot.
+	///
+	/// This actually does computation. If you need to keep using it, then make sure you cache the
+	/// value and only call this once.
+	pub fn account_id() -> T::AccountId {
+		T::PalletId::get().into_account_truncating()
+	}
+
 }
