@@ -4,8 +4,8 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 use frame_support::{
-	sp_runtime::{traits::AccountIdConversion, DispatchError},
-	traits::{Currency, Get},
+	sp_runtime::{traits::{AccountIdConversion,Zero}, DispatchError},
+	traits::{Currency, Get,ExistenceRequirement::KeepAlive},
 	PalletId, RuntimeDebug,
 };
 
@@ -77,6 +77,20 @@ pub mod pallet {
 		#[pallet::call_index(0)]
 		#[pallet::weight(0)]
 		pub fn start_game (origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult{
+			let caller = ensure_signed(origin.clone())?;
+			ensure!(!bet.is_zero(), "Bet must be greater than 0");
+			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
+			let game_index = Self::game_index();
+			let game = Game {
+				bet: Some(bet),
+				jackpot: Some(bet),
+				// TBD: How to set an "empty" account id?
+				payout_addresses: (caller.clone(), caller.clone()),
+				ended: false,
+			};
+			let new_game_index = game_index.checked_add(1).ok_or(Error::<T>::IndexOverflow)?;
+			Games::<T>::insert(game_index, game);
+			GameIndex::<T>::put(new_game_index);
 			Ok(())
 		}
 	}
