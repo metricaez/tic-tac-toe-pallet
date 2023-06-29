@@ -5,6 +5,15 @@ use frame_support::{traits::Currency, PalletId};
 
 pub use pallet::*;
 
+type BalanceOf<T> =
+	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+pub struct Game<T: Config> {
+	jackpot: Option<BalanceOf<T>>,
+	payout_addresses: (T::AccountId, T::AccountId),
+	ended: bool,
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 
