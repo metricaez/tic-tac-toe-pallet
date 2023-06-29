@@ -1,9 +1,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+//Q: Why here and not inside pallet mod? Scope ?
+use frame_support::{traits::Currency, PalletId};
+
 pub use pallet::*;
 
-#[frame_support::pallet(dev_mode)]
+#[frame_support::pallet]
 pub mod pallet {
+
+	//TBD: For accessing imports outside of pallet mod
+	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
@@ -11,5 +17,23 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {}
+	pub trait Config: frame_system::Config {
+		/// Jackpot Pallet Id
+		#[pallet::constant]
+		type PalletId: Get<PalletId>;
+
+		/// The currency trait for managing currency operations
+		type Currency: Currency<Self::AccountId>;
+
+		/// Event emission
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+	}
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		/// Event documentation should end with an array that provides descriptive names for event
+		/// parameters. [something, who]
+		SomethingStored { something: u32, who: T::AccountId },
+	}
 }
