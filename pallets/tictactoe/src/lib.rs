@@ -6,6 +6,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 ///TBD: error: internal compiler error: encountered incremental compilation error with mir_built(76e5305fbe3bf3e0-1cbbbe6365e28f21)
 
 use codec::{Decode, Encode, MaxEncodedLen};
