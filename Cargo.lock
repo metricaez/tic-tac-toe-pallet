@@ -4407,6 +4407,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-sudo",
  "pallet-template",
+ "pallet-tictactoe",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
