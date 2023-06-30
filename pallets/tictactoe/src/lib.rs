@@ -6,12 +6,17 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+///TBD: error: internal compiler error: encountered incremental compilation error with mir_built(76e5305fbe3bf3e0-1cbbbe6365e28f21)
+
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 use frame_support::{
-	sp_runtime::{traits::{AccountIdConversion,Zero}, DispatchError},
-	traits::{Currency, Get,ExistenceRequirement::KeepAlive},
+	sp_runtime::{
+		traits::{AccountIdConversion, Saturating, Zero},
+		ArithmeticError, DispatchError,
+	},
+	traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 	PalletId, RuntimeDebug,
 };
 
@@ -62,11 +67,24 @@ pub mod pallet {
 		GameCreated { game_index: u32 },
 		/// A player has won a game.
 		GameWon { winner: T::AccountId, jackpot: BalanceOf<T> },
+		/// A game has ended.
+		GameEnded { game_index: u32 },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The game does not exist.
+		GameDoesNotExist,
+		/// The gaame index has overflowed.
 		IndexOverflow,
+		/// The game has already ended.
+		GameAlreadyEnded,
+		/// The bet must be greater than 0.
+		CantBeZero,
+		/// The account is not a player of the game.
+		NotAPlayer,
+		/// Game is full.
+		GameFull,
 	}
 
 	#[pallet::storage]
@@ -79,10 +97,10 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, u32, Game<BalanceOf<T>, T::AccountId>, OptionQuery>;
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T>{
+	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
 		#[pallet::weight(0)]
-		pub fn start_game (origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult{
+		pub fn start_game(origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
 			ensure!(!bet.is_zero(), "Bet must be greater than 0");
 			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
@@ -99,6 +117,56 @@ pub mod pallet {
 			GameIndex::<T>::put(new_game_index);
 			Ok(())
 		}
+
+		#[pallet::call_index(1)]
+		#[pallet::weight(0)]
+		pub fn join_game(origin: OriginFor<T>, game_index: u32) -> DispatchResult {
+			let caller = ensure_signed(origin.clone())?;
+			let game = Self::games(game_index).ok_or(Error::<T>::GameDoesNotExist)?;
+			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
+			ensure!(game.payout_addresses.0 == game.payout_addresses.1, Error::<T>::GameFull);
+			let bet = game.bet.ok_or(Error::<T>::GameDoesNotExist)?;
+			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
+			let host = game.payout_addresses.0;
+
+			let new_jackpot = game.jackpot.ok_or(Error::<T>::GameDoesNotExist)?.saturating_add(bet);
+			let new_game = Game {
+				bet: game.bet,
+				jackpot: Some(new_jackpot),
+				payout_addresses: (host, caller.clone()),
+				ended: game.ended,
+			};
+			Games::<T>::insert(game_index, new_game);
+			Ok(())
+		}
+
+		///TBD: How can we avoid someone to end a running game and steal funds to a prefered winner account?
+		#[pallet::call_index(2)]
+		#[pallet::weight(0)]
+		pub fn end_game(
+			origin: OriginFor<T>,
+			game_index: u32,
+			winner: T::AccountId,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			let game = Self::games(game_index).ok_or(Error::<T>::GameDoesNotExist)?;
+			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
+			let payout_addresses = game.payout_addresses;
+			let host = payout_addresses.0;
+			let joiner = payout_addresses.1;
+			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
+			let jackpot = game.jackpot.ok_or(Error::<T>::GameDoesNotExist)?;
+			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
+			let new_game = Game {
+				bet: game.bet,
+				jackpot: Some(Zero::zero()),
+				payout_addresses: (host, joiner),
+				ended: true,
+			};
+			Games::<T>::insert(game_index, new_game);
+			Self::deposit_event(Event::GameWon { winner, jackpot });
+			Ok(())
+		}
 	}
 }
 
@@ -110,5 +178,4 @@ impl<T: Config> Pallet<T> {
 	pub fn account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
 	}
-
 }
