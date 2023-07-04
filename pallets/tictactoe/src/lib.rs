@@ -17,7 +17,6 @@ use scale_info::TypeInfo;
 use frame_support::{
 	sp_runtime::{
 		traits::{AccountIdConversion, Saturating, Zero},
-		ArithmeticError, DispatchError,
 	},
 	traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 	PalletId, RuntimeDebug,
@@ -159,7 +158,6 @@ pub mod pallet {
 			let joiner = payout_addresses.1;
 			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
 			let jackpot = game.jackpot.ok_or(Error::<T>::GameDoesNotExist)?;
-			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
 			let new_game = Game {
 				bet: game.bet,
 				jackpot: Some(Zero::zero()),
@@ -167,6 +165,7 @@ pub mod pallet {
 				ended: true,
 			};
 			Games::<T>::insert(game_index, new_game);
+			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
 			Self::deposit_event(Event::GameWon { winner, jackpot });
 			Ok(())
 		}
