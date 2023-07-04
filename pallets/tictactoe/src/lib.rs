@@ -30,7 +30,7 @@ type BalanceOf<T> =
 //TBD: If transfer of jackpot breaks due to existencial deposits, add fee param.
 pub struct Game<Balance, AccountId> {
 	bet: Balance,
-	payout_addresses: (AccountId, AccountId),
+	payout_addresses: (Option<AccountId>, Option<AccountId>),
 	ended: bool,
 }
 
@@ -105,8 +105,7 @@ pub mod pallet {
 			let game_index = Self::game_index();
 			let game = Game {
 				bet: bet,
-				// TBD: How to set an "empty" account id?
-				payout_addresses: (caller.clone(), caller.clone()),
+				payout_addresses: (Some(caller.clone()), None),
 				ended: false,
 			};
 			let new_game_index = game_index.checked_add(1).ok_or(Error::<T>::IndexOverflow)?;
@@ -122,13 +121,13 @@ pub mod pallet {
 			let caller = ensure_signed(origin.clone())?;
 			let game = Self::games(game_index).ok_or(Error::<T>::GameDoesNotExist)?;
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
-			ensure!(game.payout_addresses.0 == game.payout_addresses.1, Error::<T>::GameFull);
+			ensure!(game.payout_addresses.1 == None, Error::<T>::GameFull);
 			let bet = game.bet;
 			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
 			let host = game.payout_addresses.0;
 			let new_game = Game {
 				bet: game.bet,
-				payout_addresses: (host, caller.clone()),
+				payout_addresses: (host, Some(caller.clone())),
 				ended: game.ended,
 			};
 			Games::<T>::insert(game_index, new_game);
@@ -148,13 +147,13 @@ pub mod pallet {
 			let game = Self::games(game_index).ok_or(Error::<T>::GameDoesNotExist)?;
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
 			let payout_addresses = game.payout_addresses;
-			let host = payout_addresses.0;
-			let joiner = payout_addresses.1;
+			let host = payout_addresses.0.ok_or(Error::<T>::NotAPlayer)?;
+			let joiner = payout_addresses.1.ok_or(Error::<T>::NotAPlayer)?;
 			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
 			let jackpot = game.bet.saturating_mul(2u32.into());
 			let new_game = Game {
 				bet: game.bet,
-				payout_addresses: (host, joiner),
+				payout_addresses: (Some(host), Some(joiner)),
 				ended: true,
 			};
 			Games::<T>::insert(game_index, new_game);

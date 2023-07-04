@@ -20,7 +20,7 @@ fn create_game_works() {
 		assert_eq!(Balances::free_balance(&creator), initial_balance - bet);
 		assert_eq!(Tictactoe::game_index(), 1);
 		assert_eq!(Tictactoe::games(0).unwrap().bet, bet);
-		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (creator, creator));
+		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (Some(creator), None));
 		assert_eq!(Tictactoe::games(0).unwrap().ended, false);
 		assert_eq!(Balances::free_balance(Tictactoe::account_id()), bet)
 	});
@@ -57,7 +57,7 @@ fn join_a_game_works() {
 		assert_eq!(Balances::free_balance(&joiner), initial_balance - bet);
 		assert_eq!(Tictactoe::game_index(), 1);
 		assert_eq!(Tictactoe::games(0).unwrap().bet, bet);
-		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (creator, joiner));
+		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (Some(creator), Some(joiner)));
 		assert_eq!(Tictactoe::games(0).unwrap().ended, false);
 		assert_eq!(Balances::free_balance(Tictactoe::account_id()), bet * 2);
 	});
@@ -97,7 +97,7 @@ fn end_game_works() {
 		assert_eq!(Balances::free_balance(&creator), initial_balance + bet * 2);
 		assert_eq!(Tictactoe::game_index(), 1);
 		assert_eq!(Tictactoe::games(0).unwrap().bet, bet);
-		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (creator, joiner));
+		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (Some(creator), Some(joiner)));
 		assert_eq!(Tictactoe::games(0).unwrap().ended, true);
 		assert_eq!(Balances::free_balance(Tictactoe::account_id()), pallet_funding);
 	});
