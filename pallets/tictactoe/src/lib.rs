@@ -29,8 +29,7 @@ type BalanceOf<T> =
 )]
 //TBD: If transfer of jackpot breaks due to existencial deposits, add fee param.
 pub struct Game<Balance, AccountId> {
-	bet: Option<Balance>,
-	jackpot: Option<Balance>,
+	bet: Balance,
 	payout_addresses: (AccountId, AccountId),
 	ended: bool,
 }
@@ -105,8 +104,7 @@ pub mod pallet {
 			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
 			let game_index = Self::game_index();
 			let game = Game {
-				bet: Some(bet),
-				jackpot: Some(bet),
+				bet: bet,
 				// TBD: How to set an "empty" account id?
 				payout_addresses: (caller.clone(), caller.clone()),
 				ended: false,
@@ -125,14 +123,11 @@ pub mod pallet {
 			let game = Self::games(game_index).ok_or(Error::<T>::GameDoesNotExist)?;
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
 			ensure!(game.payout_addresses.0 == game.payout_addresses.1, Error::<T>::GameFull);
-			let bet = game.bet.ok_or(Error::<T>::GameDoesNotExist)?;
+			let bet = game.bet;
 			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
 			let host = game.payout_addresses.0;
-
-			let new_jackpot = game.jackpot.ok_or(Error::<T>::GameDoesNotExist)?.saturating_add(bet);
 			let new_game = Game {
 				bet: game.bet,
-				jackpot: Some(new_jackpot),
 				payout_addresses: (host, caller.clone()),
 				ended: game.ended,
 			};
@@ -156,10 +151,9 @@ pub mod pallet {
 			let host = payout_addresses.0;
 			let joiner = payout_addresses.1;
 			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
-			let jackpot = game.jackpot.ok_or(Error::<T>::GameDoesNotExist)?;
+			let jackpot = game.bet.saturating_mul(2u32.into());
 			let new_game = Game {
 				bet: game.bet,
-				jackpot: Some(Zero::zero()),
 				payout_addresses: (host, joiner),
 				ended: true,
 			};
