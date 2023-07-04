@@ -33,11 +33,10 @@ fn create_game_fails_with_zero_bet() {
 		let creator = 1;
 		let initial_balance = Balances::free_balance(&creator);
 		let bet = 0;
-		///TBD: Assert errors not passing
-		/*assert_noop!(
+		assert_noop!(
 			Tictactoe::start_game(RuntimeOrigin::signed(creator), bet),
 			Error::<Test>::CantBeZero
-		);*/
+		);
 		assert!(Tictactoe::start_game(RuntimeOrigin::signed(creator), bet).is_err());
 		assert_eq!(Balances::free_balance(&creator), initial_balance);
 		assert_eq!(Tictactoe::game_index(), 0);

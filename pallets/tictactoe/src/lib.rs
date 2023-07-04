@@ -10,14 +10,11 @@ mod tests;
 mod benchmarking;
 
 ///TBD: error: internal compiler error: encountered incremental compilation error with mir_built(76e5305fbe3bf3e0-1cbbbe6365e28f21)
-
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 use frame_support::{
-	sp_runtime::{
-		traits::{AccountIdConversion, Saturating, Zero},
-	},
+	sp_runtime::traits::{AccountIdConversion, Saturating, Zero},
 	traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 	PalletId, RuntimeDebug,
 };
@@ -67,10 +64,10 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// A game has been created.
 		GameCreated { game_index: u32 },
-		/// A player has won a game.
-		GameWon { winner: T::AccountId, jackpot: BalanceOf<T> },
+		/// A player has joined a game.
+		PlayerJoined { game_index: u32, player: T::AccountId },
 		/// A game has ended.
-		GameEnded { game_index: u32 },
+		GameEnded { game_index: u32, winner: T::AccountId, jackpot: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -104,7 +101,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn start_game(origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
-			ensure!(!bet.is_zero(), "Bet must be greater than 0");
+			ensure!(!bet.is_zero(), Error::<T>::CantBeZero);
 			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
 			let game_index = Self::game_index();
 			let game = Game {
@@ -117,6 +114,7 @@ pub mod pallet {
 			let new_game_index = game_index.checked_add(1).ok_or(Error::<T>::IndexOverflow)?;
 			Games::<T>::insert(game_index, game);
 			GameIndex::<T>::put(new_game_index);
+			Self::deposit_event(Event::GameCreated { game_index });
 			Ok(())
 		}
 
@@ -139,6 +137,7 @@ pub mod pallet {
 				ended: game.ended,
 			};
 			Games::<T>::insert(game_index, new_game);
+			Self::deposit_event(Event::PlayerJoined { game_index, player: caller });
 			Ok(())
 		}
 
@@ -166,7 +165,7 @@ pub mod pallet {
 			};
 			Games::<T>::insert(game_index, new_game);
 			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
-			Self::deposit_event(Event::GameWon { winner, jackpot });
+			Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
 			Ok(())
 		}
 	}
