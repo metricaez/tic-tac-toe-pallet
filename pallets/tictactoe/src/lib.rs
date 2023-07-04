@@ -83,6 +83,8 @@ pub mod pallet {
 		NotAPlayer,
 		/// Game is full.
 		GameFull,
+		/// Bad address stored.
+		BadAddress,
 	}
 
 	#[pallet::storage]
@@ -103,12 +105,9 @@ pub mod pallet {
 			ensure!(!bet.is_zero(), Error::<T>::CantBeZero);
 			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
 			let game_index = Self::game_index();
-			let game = Game {
-				bet: bet,
-				payout_addresses: (Some(caller.clone()), None),
-				ended: false,
-			};
-			let new_game_index = game_index.checked_add(1).ok_or(Error::<T>::IndexOverflow)?;
+			let game = Game { bet, payout_addresses: (Some(caller.clone()), None), ended: false };
+			let new_game_index =
+				game_index.checked_add(1).ok_or_else(|| Error::<T>::IndexOverflow)?;
 			Games::<T>::insert(game_index, game);
 			GameIndex::<T>::put(new_game_index);
 			Self::deposit_event(Event::GameCreated { game_index });
@@ -119,7 +118,10 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn join_game(origin: OriginFor<T>, game_index: u32) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
-			let game = Self::games(game_index).ok_or(Error::<T>::GameDoesNotExist)?;
+			let game = match Self::games(game_index) {
+				Some(game) => game,
+				None => return Err(Error::<T>::GameDoesNotExist.into()),
+			};
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
 			ensure!(game.payout_addresses.1 == None, Error::<T>::GameFull);
 			let bet = game.bet;
@@ -144,18 +146,18 @@ pub mod pallet {
 			winner: T::AccountId,
 		) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
-			let game = Self::games(game_index).ok_or(Error::<T>::GameDoesNotExist)?;
+			let game = match Self::games(game_index) {
+				Some(game) => game,
+				None => return Err(Error::<T>::GameDoesNotExist.into()),
+			};
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
 			let payout_addresses = game.payout_addresses;
-			let host = payout_addresses.0.ok_or(Error::<T>::NotAPlayer)?;
-			let joiner = payout_addresses.1.ok_or(Error::<T>::NotAPlayer)?;
+			let host = payout_addresses.0.ok_or_else(|| Error::<T>::BadAddress)?;
+			let joiner = payout_addresses.1.ok_or_else(|| Error::<T>::BadAddress)?;
 			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
 			let jackpot = game.bet.saturating_mul(2u32.into());
-			let new_game = Game {
-				bet: game.bet,
-				payout_addresses: (Some(host), Some(joiner)),
-				ended: true,
-			};
+			let new_game =
+				Game { bet: game.bet, payout_addresses: (Some(host), Some(joiner)), ended: true };
 			Games::<T>::insert(game_index, new_game);
 			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
 			Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
