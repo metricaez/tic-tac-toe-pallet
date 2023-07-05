@@ -6,6 +6,7 @@ fn initial_state() {
 	new_test_ext().execute_with(|| {
 		assert_eq!(Balances::free_balance(Tictactoe::account_id()), 0);
 		assert_eq!(Tictactoe::game_index(), 0);
+		assert_eq!(Tictactoe::safeguard_deposit(), 0);
 		assert!(Tictactoe::games(0).is_none());
 	});
 }

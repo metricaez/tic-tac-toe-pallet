@@ -13,8 +13,12 @@ mod benchmarking;
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
+/// TBD: difference of using sp_runtime from frame_support or from sp_runtime directly
 use frame_support::{
-	sp_runtime::traits::{AccountIdConversion, Saturating, Zero},
+	sp_runtime::{
+		traits::{AccountIdConversion, Saturating, Zero},
+		DispatchError,
+	},
 	traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 	PalletId, RuntimeDebug,
 };
@@ -32,6 +36,7 @@ pub struct Game<Balance, AccountId> {
 	bet: Balance,
 	payout_addresses: (Option<AccountId>, Option<AccountId>),
 	ended: bool,
+	handshake: (Option<AccountId>, Option<AccountId>),
 }
 
 #[frame_support::pallet]
@@ -85,11 +90,17 @@ pub mod pallet {
 		GameFull,
 		/// Bad address stored.
 		BadAddress,
+		/// Handshale already set
+		HandshakeAlreadySet,
 	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn game_index)]
 	pub(crate) type GameIndex<T> = StorageValue<_, u32, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn safeguard_deposit)]
+	pub(crate) type SafeguardDeposit<T> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn games)]
@@ -103,9 +114,15 @@ pub mod pallet {
 		pub fn start_game(origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
 			ensure!(!bet.is_zero(), Error::<T>::CantBeZero);
-			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
+			let transfer_amount = bet.saturating_add(Self::safeguard_deposit());
+			T::Currency::transfer(&caller, &Self::account_id(), transfer_amount, KeepAlive)?;
 			let game_index = Self::game_index();
-			let game = Game { bet, payout_addresses: (Some(caller.clone()), None), ended: false };
+			let game = Game {
+				bet,
+				payout_addresses: (Some(caller.clone()), None),
+				ended: false,
+				handshake: (None, None),
+			};
 			let new_game_index =
 				game_index.checked_add(1).ok_or_else(|| Error::<T>::IndexOverflow)?;
 			Games::<T>::insert(game_index, game);
@@ -125,12 +142,14 @@ pub mod pallet {
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
 			ensure!(game.payout_addresses.1 == None, Error::<T>::GameFull);
 			let bet = game.bet;
-			T::Currency::transfer(&caller, &Self::account_id(), bet, KeepAlive)?;
+			let transfer_amount = bet.saturating_add(Self::safeguard_deposit());
+			T::Currency::transfer(&caller, &Self::account_id(), transfer_amount, KeepAlive)?;
 			let host = game.payout_addresses.0;
 			let new_game = Game {
 				bet: game.bet,
 				payout_addresses: (host, Some(caller.clone())),
 				ended: game.ended,
+				handshake: (None, None),
 			};
 			Games::<T>::insert(game_index, new_game);
 			Self::deposit_event(Event::PlayerJoined { game_index, player: caller });
@@ -145,22 +164,43 @@ pub mod pallet {
 			game_index: u32,
 			winner: T::AccountId,
 		) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
+
+			let caller = ensure_signed(origin)?;
 			let game = match Self::games(game_index) {
 				Some(game) => game,
 				None => return Err(Error::<T>::GameDoesNotExist.into()),
 			};
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
+
 			let payout_addresses = game.payout_addresses;
 			let host = payout_addresses.0.ok_or_else(|| Error::<T>::BadAddress)?;
 			let joiner = payout_addresses.1.ok_or_else(|| Error::<T>::BadAddress)?;
+			ensure!(caller == host || caller == joiner, Error::<T>::NotAPlayer);
 			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
-			let jackpot = game.bet.saturating_mul(2u32.into());
-			let new_game =
-				Game { bet: game.bet, payout_addresses: (Some(host), Some(joiner)), ended: true };
+
+			let new_game = Game {
+				bet: game.bet,
+				payout_addresses: (Some(host), Some(joiner)),
+				ended: true,
+				handshake: (None, None),
+			};
 			Games::<T>::insert(game_index, new_game);
+
+			let jackpot = game.bet.saturating_mul(2u32.into());
 			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
+			
 			Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
+			Ok(())
+		}
+
+		#[pallet::call_index(3)]
+		#[pallet::weight(0)]
+		pub fn set_safeguard_deposit(
+			origin: OriginFor<T>,
+			deposit: BalanceOf<T>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			SafeguardDeposit::<T>::put(deposit);
 			Ok(())
 		}
 	}
@@ -173,5 +213,28 @@ impl<T: Config> Pallet<T> {
 	/// value and only call this once.
 	pub fn account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
+	}
+
+	fn update_handshake(
+		caller: T::AccountId,
+		host: T::AccountId,
+		winner: T::AccountId,
+		handshake: (Option<T::AccountId>, Option<T::AccountId>),
+	) -> Result<(Option<T::AccountId>, Option<T::AccountId>), DispatchError> {
+		let mut new_handshake = handshake;
+		if caller == host {
+			if new_handshake.0 == None {
+				new_handshake.0 = Some(winner);
+			} else {
+				return Err(Error::<T>::HandshakeAlreadySet.into());
+			}
+		} else {
+			if new_handshake.1 == None {
+				new_handshake.1 = Some(winner);
+			} else {
+				return Err(Error::<T>::HandshakeAlreadySet.into());
+			}
+		}
+		Ok(new_handshake)
 	}
 }
