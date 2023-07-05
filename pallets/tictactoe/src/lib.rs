@@ -210,7 +210,11 @@ pub mod pallet {
 
 			// Check if both players have agreed on the winner, tra
 			if new_handshake.0 == None || new_handshake.1 == None {
-				Self::deposit_event(Event::WinnerProposed { game_index, winner: winner.clone(), proposer: caller.clone() });
+				Self::deposit_event(Event::WinnerProposed {
+					game_index,
+					winner: winner.clone(),
+					proposer: caller.clone(),
+				});
 				end_game = false;
 			}
 
@@ -254,6 +258,53 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			SafeguardDeposit::<T>::put(deposit);
+			Ok(())
+		}
+
+		#[pallet::call_index(4)]
+		#[pallet::weight(0)]
+		pub fn force_end_game(
+			origin: OriginFor<T>,
+			game_index: u32,
+			winner: T::AccountId,
+			deposit_benefiicary: T::AccountId,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let game = match Self::games(game_index) {
+				Some(game) => game,
+				None => return Err(Error::<T>::GameDoesNotExist.into()),
+			};
+			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
+			// TBD: Is this pattern correct? Create a new game and insert it or could I update the parameters of currently saved one
+			let new_game = Game {
+				bet: game.bet,
+				payout_addresses: game.payout_addresses,
+				ended: true,
+				handshake: (Some(winner.clone()), Some(winner.clone())),
+			};
+			Games::<T>::insert(game_index, new_game);
+			let jackpot = game.bet.saturating_mul(2u32.into());
+			let safeguard_deposit = Self::safeguard_deposit();
+			let _ = T::Currency::transfer(
+				&Self::account_id(),
+				&deposit_benefiicary,
+				safeguard_deposit,
+				KeepAlive,
+			)?;
+			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
+			Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		#[pallet::weight(0)]
+		pub fn withdraw_funds(
+			origin: OriginFor<T>,
+			amount: BalanceOf<T>,
+			beneficiary: T::AccountId,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			T::Currency::transfer(&Self::account_id(), &beneficiary, amount, KeepAlive)?;
 			Ok(())
 		}
 	}
