@@ -80,6 +80,8 @@ fn join_a_full_game_fails() {
 #[test]
 fn end_game_works() {
 	new_test_ext().execute_with(|| {
+		// Go past genesis block so events get deposited
+		System::set_block_number(1);
 		//Fund pallet account
 		let pallet_funding = 50;
 		assert_ok!(Balances::transfer(
@@ -93,8 +95,26 @@ fn end_game_works() {
 		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(creator), bet));
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
 
+		//TBD: Tooling for debugging and printing rather than only assertions ? How chan I see emited errors or events
+
 		let initial_balance = Balances::free_balance(&creator);
+
+		assert_eq!(Tictactoe::games(0).unwrap().handshake, (None, None));
+
 		assert_ok!(Tictactoe::end_game(RuntimeOrigin::signed(creator), 0, creator));
+
+		// Print stored payout addresses
+		println!("Payout addresses: {:?}", Tictactoe::games(0).unwrap().payout_addresses);
+		println!("Handshake after player 1 calls ext: {:?}", Tictactoe::games(0).unwrap().handshake);
+
+		assert_ok!(Tictactoe::end_game(RuntimeOrigin::signed(joiner), 0, creator));
+
+		// Print stored payout addresses
+		println!("Payout addresses: {:?}", Tictactoe::games(0).unwrap().payout_addresses);
+		println!("Handshake after player 2 calls ext : {:?}", Tictactoe::games(0).unwrap().handshake);
+
+		assert_eq!(Tictactoe::games(0).unwrap().handshake, (Some(creator), Some(creator)));
+
 		assert_eq!(Balances::free_balance(&creator), initial_balance + bet * 2);
 		assert_eq!(Tictactoe::game_index(), 1);
 		assert_eq!(Tictactoe::games(0).unwrap().bet, bet);

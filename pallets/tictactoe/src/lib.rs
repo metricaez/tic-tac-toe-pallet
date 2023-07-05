@@ -15,10 +15,9 @@ use scale_info::TypeInfo;
 
 /// TBD: difference of using sp_runtime from frame_support or from sp_runtime directly
 use frame_support::{
-	sp_runtime::{
-		traits::{AccountIdConversion, Saturating, Zero},
-		DispatchError,
-	},
+	dispatch::DispatchResult,
+	ensure,
+	sp_runtime::traits::{AccountIdConversion, Saturating, Zero},
 	traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 	PalletId, RuntimeDebug,
 };
@@ -72,6 +71,12 @@ pub mod pallet {
 		PlayerJoined { game_index: u32, player: T::AccountId },
 		/// A game has ended.
 		GameEnded { game_index: u32, winner: T::AccountId, jackpot: BalanceOf<T> },
+		/// A safeguard deposit has been set.
+		SafeguardDepositSet { deposit: BalanceOf<T> },
+		/// A winner has been proposed.
+		WinnerProposed { game_index: u32, winner: T::AccountId, proposer: T::AccountId },
+		/// Mediation has been requested.
+		MediationRequested { game_index: u32, proposer: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -164,31 +169,79 @@ pub mod pallet {
 			game_index: u32,
 			winner: T::AccountId,
 		) -> DispatchResult {
-
 			let caller = ensure_signed(origin)?;
+			//let _ = Self::do_end_game(caller, winner, game_index);
+
+			// Retrieve game
 			let game = match Self::games(game_index) {
 				Some(game) => game,
 				None => return Err(Error::<T>::GameDoesNotExist.into()),
 			};
+
+			// Check if game has ended
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
 
+			// Retrieve players
 			let payout_addresses = game.payout_addresses;
 			let host = payout_addresses.0.ok_or_else(|| Error::<T>::BadAddress)?;
 			let joiner = payout_addresses.1.ok_or_else(|| Error::<T>::BadAddress)?;
+
+			// Check if caller and proposed winner is a player
 			ensure!(caller == host || caller == joiner, Error::<T>::NotAPlayer);
 			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
 
+			// Update handshake and avoid writing to storage if already set
+			let mut new_handshake = game.handshake;
+			let mut end_game = true;
+			if caller == host {
+				if new_handshake.0 == None {
+					new_handshake.0 = Some(winner.clone());
+				} else {
+					return Err(Error::<T>::HandshakeAlreadySet.into());
+				}
+			}
+			if caller == joiner {
+				if new_handshake.1 == None {
+					new_handshake.1 = Some(winner.clone());
+				} else {
+					return Err(Error::<T>::HandshakeAlreadySet.into());
+				}
+			}
+
+			// Check if both players have agreed on the winner, tra
+			if new_handshake.0 == None || new_handshake.1 == None {
+				Self::deposit_event(Event::WinnerProposed { game_index, winner: winner.clone(), proposer: caller.clone() });
+				end_game = false;
+			}
+
+			// Check if dispute is needed
+			if new_handshake.0 != new_handshake.1 {
+				Self::deposit_event(Event::MediationRequested { game_index, proposer: caller });
+				end_game = false;
+			}
+
+			// Update game and write to storage
 			let new_game = Game {
 				bet: game.bet,
-				payout_addresses: (Some(host), Some(joiner)),
-				ended: true,
-				handshake: (None, None),
+				payout_addresses: (Some(host.clone()), Some(joiner.clone())),
+				ended: end_game.clone(),
+				handshake: new_handshake,
 			};
 			Games::<T>::insert(game_index, new_game);
 
+			if !end_game {
+				return Ok(());
+			}
+			// Both players have agreed on the winner, transfer jackpot and safeguard deposit
 			let jackpot = game.bet.saturating_mul(2u32.into());
+			let safeguard_deposit = Self::safeguard_deposit();
+
+			// TBD: BatchTransfer? Better to add logic and add total transfer amount ?
+			let _ =
+				T::Currency::transfer(&Self::account_id(), &host, safeguard_deposit, KeepAlive)?;
+			let _ =
+				T::Currency::transfer(&Self::account_id(), &joiner, safeguard_deposit, KeepAlive)?;
 			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
-			
 			Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
 			Ok(())
 		}
@@ -207,34 +260,76 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// The account ID of the pallet which is the jackpot.
-	///
-	/// This actually does computation. If you need to keep using it, then make sure you cache the
-	/// value and only call this once.
 	pub fn account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
 	}
 
-	fn update_handshake(
-		caller: T::AccountId,
-		host: T::AccountId,
-		winner: T::AccountId,
-		handshake: (Option<T::AccountId>, Option<T::AccountId>),
-	) -> Result<(Option<T::AccountId>, Option<T::AccountId>), DispatchError> {
-		let mut new_handshake = handshake;
+	fn do_end_game(caller: T::AccountId, winner: T::AccountId, game_index: u32) -> DispatchResult {
+		// Retrieve game
+		let game = match Self::games(game_index) {
+			Some(game) => game,
+			None => return Err(Error::<T>::GameDoesNotExist.into()),
+		};
+
+		// Check if game has ended
+		ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
+
+		// Retrieve players
+		let payout_addresses = game.payout_addresses;
+		let host = payout_addresses.0.ok_or_else(|| Error::<T>::BadAddress)?;
+		let joiner = payout_addresses.1.ok_or_else(|| Error::<T>::BadAddress)?;
+
+		// Check if caller and proposed winner is a player
+		ensure!(caller == host || caller == joiner, Error::<T>::NotAPlayer);
+		ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
+
+		// Update handshake and avoid writing to storage if already set
+		let mut new_handshake = game.handshake;
 		if caller == host {
 			if new_handshake.0 == None {
-				new_handshake.0 = Some(winner);
-			} else {
-				return Err(Error::<T>::HandshakeAlreadySet.into());
-			}
-		} else {
-			if new_handshake.1 == None {
-				new_handshake.1 = Some(winner);
+				new_handshake.0 = Some(winner.clone());
 			} else {
 				return Err(Error::<T>::HandshakeAlreadySet.into());
 			}
 		}
-		Ok(new_handshake)
+		if caller == joiner {
+			if new_handshake.1 == None {
+				new_handshake.1 = Some(winner.clone());
+			} else {
+				return Err(Error::<T>::HandshakeAlreadySet.into());
+			}
+		}
+
+		// Update game and write to storage
+		let new_game = Game {
+			bet: game.bet,
+			payout_addresses: (Some(host.clone()), Some(joiner.clone())),
+			ended: true,
+			handshake: new_handshake.clone(),
+		};
+		Games::<T>::insert(game_index, new_game);
+
+		// Check if both players have agreed on the winner, tra
+		if new_handshake.0 == None || new_handshake.1 == None {
+			Self::deposit_event(Event::WinnerProposed { game_index, winner, proposer: caller });
+			return Ok(());
+		}
+
+		// Check if dispute is needed
+		if new_handshake.0 != new_handshake.1 {
+			Self::deposit_event(Event::MediationRequested { game_index, proposer: caller });
+			return Ok(());
+		}
+
+		// Both players have agreed on the winner, transfer jackpot and safeguard deposit
+		let jackpot = game.bet.saturating_mul(2u32.into());
+		let safeguard_deposit = Self::safeguard_deposit();
+
+		// TBD: BatchTransfer? Better to add logic and add total transfer amount ?
+		let _ = T::Currency::transfer(&Self::account_id(), &host, safeguard_deposit, KeepAlive)?;
+		let _ = T::Currency::transfer(&Self::account_id(), &joiner, safeguard_deposit, KeepAlive)?;
+		let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
+		Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
+		Ok(())
 	}
 }
