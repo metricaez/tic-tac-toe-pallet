@@ -3,9 +3,9 @@ use crate as pallet_tictactoe;
 
 use frame_support::{
 	parameter_types,
-	traits::{ConstU32, ConstU64, OnFinalize, OnInitialize},
+	traits::{ConstU32, ConstU64, },
 };
-use frame_system::EnsureRoot;
+
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
