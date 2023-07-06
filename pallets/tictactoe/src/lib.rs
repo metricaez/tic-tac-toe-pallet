@@ -216,10 +216,7 @@ pub mod pallet {
 					proposer: caller.clone(),
 				});
 				end_game = false;
-			}
-
-			// Check if dispute is needed
-			if new_handshake.0 != new_handshake.1 {
+			} else if new_handshake.0 != new_handshake.1 {
 				Self::deposit_event(Event::MediationRequested { game_index, proposer: caller });
 				end_game = false;
 			}
@@ -258,6 +255,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			SafeguardDeposit::<T>::put(deposit);
+			Self::deposit_event(Event::SafeguardDepositSet { deposit });
 			Ok(())
 		}
 
