@@ -28,15 +28,51 @@ mod benchmarks {
 		let caller: T::AccountId = whitelisted_caller();
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		let bet = T::Currency::minimum_balance();
-		let game_index:u32 = 0;
+		let game_index: u32 = 0;
 		#[extrinsic_call]
 		create_game(RawOrigin::Signed(caller), bet);
 
 		assert_eq!(Tictactoe::<T>::games(game_index).unwrap().bet, bet);
 	}
 
+	#[benchmark]
+	fn join_game() {
+		let host = account("host", 0, 0);
+		T::Currency::make_free_balance_be(&host, BalanceOf::<T>::max_value());
+		let _ = Tictactoe::<T>::create_game(
+			RawOrigin::Signed(host.clone()).into(),
+			T::Currency::minimum_balance(),
+		);
+		let caller: T::AccountId = whitelisted_caller();
+		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		#[extrinsic_call]
+		join_game(RawOrigin::Signed(caller.clone()), 0u32);
 
-	//TBD How to achieve a state ? Create a game and then call join for measuring weight.
+		assert_eq!(Tictactoe::<T>::games(0).unwrap().payout_addresses.1, Some(caller));
+	}
+
+	#[benchmark]
+	fn end_game() {
+		T::Currency::make_free_balance_be(&Tictactoe::<T>::account_id(), 1000u32.into());
+
+		let host = account("host", 0, 0);
+		let bet = 1000u32.into();
+		T::Currency::make_free_balance_be(&host, 10000000u32.into());
+		let _ = Tictactoe::<T>::create_game(RawOrigin::Signed(host.clone()).into(), bet);
+
+		let caller: T::AccountId = whitelisted_caller();
+		T::Currency::make_free_balance_be(&caller, 10000000u32.into());
+		let _ = Tictactoe::<T>::join_game(RawOrigin::Signed(caller.clone()).into(), 0u32);
+		
+		assert!(Tictactoe::<T>::games(0).unwrap().bet == bet);
+		assert_eq!(Tictactoe::<T>::games(0).unwrap().payout_addresses, (Some(host.clone()),Some(caller.clone())));
+
+		let _ = Tictactoe::<T>::end_game(RawOrigin::Signed(host.clone()).into(), 0u32, host.clone());
+		#[extrinsic_call]
+		end_game(RawOrigin::Signed(caller.clone()), 0u32, host.clone());
+
+		assert_eq!(Tictactoe::<T>::games(0).unwrap().handshake, (Some(host.clone()),Some(host)));
+	}
 
 	impl_benchmark_test_suite!(Tictactoe, crate::mock::new_test_ext(), crate::mock::Test);
 }

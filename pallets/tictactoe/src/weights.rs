@@ -32,6 +32,8 @@ use core::marker::PhantomData;
 /// Weight functions needed for pallet_tictactoe.
 pub trait WeightInfo {
 	fn create_game() -> Weight;
+	fn join_game() -> Weight;
+	fn end_game() -> Weight;
 }
 
 /// Weights for pallet_tictactoe using the Substrate node and recommended hardware.
@@ -49,9 +51,39 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `6`
 		//  Estimated: `3593`
-		// Minimum execution time: 55_000_000 picoseconds.
-		Weight::from_parts(57_000_000, 3593)
+		// Minimum execution time: 56_000_000 picoseconds.
+		Weight::from_parts(58_000_000, 3593)
 			.saturating_add(T::DbWeight::get().reads(3_u64))
+			.saturating_add(T::DbWeight::get().writes(3_u64))
+	}
+	/// Storage: Tictactoe Games (r:1 w:1)
+	/// Proof: Tictactoe Games (max_values: None, max_size: Some(161), added: 2636, mode: MaxEncodedLen)
+	/// Storage: Tictactoe SafeguardDeposit (r:1 w:0)
+	/// Proof: Tictactoe SafeguardDeposit (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
+	/// Storage: System Account (r:1 w:1)
+	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
+	fn join_game() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `223`
+		//  Estimated: `3626`
+		// Minimum execution time: 52_000_000 picoseconds.
+		Weight::from_parts(53_000_000, 3626)
+			.saturating_add(T::DbWeight::get().reads(3_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
+	/// Storage: Tictactoe Games (r:1 w:1)
+	/// Proof: Tictactoe Games (max_values: None, max_size: Some(161), added: 2636, mode: MaxEncodedLen)
+	/// Storage: Tictactoe SafeguardDeposit (r:1 w:0)
+	/// Proof: Tictactoe SafeguardDeposit (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
+	/// Storage: System Account (r:2 w:2)
+	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
+	fn end_game() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `391`
+		//  Estimated: `6196`
+		// Minimum execution time: 54_000_000 picoseconds.
+		Weight::from_parts(55_000_000, 6196)
+			.saturating_add(T::DbWeight::get().reads(4_u64))
 			.saturating_add(T::DbWeight::get().writes(3_u64))
 	}
 }
@@ -70,9 +102,39 @@ impl WeightInfo for () {
 		// Proof Size summary in bytes:
 		//  Measured:  `6`
 		//  Estimated: `3593`
-		// Minimum execution time: 55_000_000 picoseconds.
-		Weight::from_parts(57_000_000, 3593)
+		// Minimum execution time: 56_000_000 picoseconds.
+		Weight::from_parts(58_000_000, 3593)
 			.saturating_add(RocksDbWeight::get().reads(3_u64))
+			.saturating_add(RocksDbWeight::get().writes(3_u64))
+	}
+	/// Storage: Tictactoe Games (r:1 w:1)
+	/// Proof: Tictactoe Games (max_values: None, max_size: Some(161), added: 2636, mode: MaxEncodedLen)
+	/// Storage: Tictactoe SafeguardDeposit (r:1 w:0)
+	/// Proof: Tictactoe SafeguardDeposit (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
+	/// Storage: System Account (r:1 w:1)
+	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
+	fn join_game() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `223`
+		//  Estimated: `3626`
+		// Minimum execution time: 52_000_000 picoseconds.
+		Weight::from_parts(53_000_000, 3626)
+			.saturating_add(RocksDbWeight::get().reads(3_u64))
+			.saturating_add(RocksDbWeight::get().writes(2_u64))
+	}
+	/// Storage: Tictactoe Games (r:1 w:1)
+	/// Proof: Tictactoe Games (max_values: None, max_size: Some(161), added: 2636, mode: MaxEncodedLen)
+	/// Storage: Tictactoe SafeguardDeposit (r:1 w:0)
+	/// Proof: Tictactoe SafeguardDeposit (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
+	/// Storage: System Account (r:2 w:2)
+	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
+	fn end_game() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `391`
+		//  Estimated: `6196`
+		// Minimum execution time: 54_000_000 picoseconds.
+		Weight::from_parts(55_000_000, 6196)
+			.saturating_add(RocksDbWeight::get().reads(4_u64))
 			.saturating_add(RocksDbWeight::get().writes(3_u64))
 	}
 }

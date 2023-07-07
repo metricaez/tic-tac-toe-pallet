@@ -311,3 +311,4 @@ fn non_sudo_cant_force_end() {
 		assert!(Tictactoe::force_end_game(RuntimeOrigin::signed(host), 0, host, host).is_err());
 	});
 }
+

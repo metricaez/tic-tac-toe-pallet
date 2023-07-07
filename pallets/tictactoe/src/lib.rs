@@ -87,6 +87,8 @@ pub mod pallet {
 		WinnerProposed { game_index: u32, winner: T::AccountId, proposer: T::AccountId },
 		/// Mediation has been requested.
 		MediationRequested { game_index: u32, proposer: T::AccountId },
+		/// Funds has been withdrawn.
+		FundsWithdrawn { amount: BalanceOf<T>, beneficiary: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -331,7 +333,8 @@ pub mod pallet {
 			beneficiary: T::AccountId,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			T::Currency::transfer(&Self::account_id(), &beneficiary, amount, KeepAlive)?;
+			let _ = T::Currency::transfer(&Self::account_id(), &beneficiary, amount, KeepAlive)?;
+			Self::deposit_event(Event::FundsWithdrawn { amount, beneficiary });
 			Ok(())
 		}
 	}
