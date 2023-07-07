@@ -9,7 +9,10 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-///TBD: error: internal compiler error: encountered incremental compilation error with mir_built(76e5305fbe3bf3e0-1cbbbe6365e28f21)
+///TBD: error: internal compiler error: encountered incremental compilation error with
+/// mir_built(76e5305fbe3bf3e0-1cbbbe6365e28f21)
+/// TBD: Move logic out of call ?
+/// TBD: Put or mutate game in storage?
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
@@ -17,12 +20,18 @@ use scale_info::TypeInfo;
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
-	sp_runtime::traits::{AccountIdConversion, Saturating, Zero},
+	sp_runtime::{
+		traits::{AccountIdConversion, Saturating, Zero},
+		DispatchError,
+	},
 	traits::{Currency, ExistenceRequirement::KeepAlive, Get},
 	PalletId, RuntimeDebug,
 };
 
 pub use pallet::*;
+
+// pub mod weights;
+// pub use weights::*;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -41,7 +50,6 @@ pub struct Game<Balance, AccountId> {
 #[frame_support::pallet]
 pub mod pallet {
 
-	//TBD: For accessing imports outside of pallet mod
 	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
@@ -60,6 +68,8 @@ pub mod pallet {
 
 		/// Event emission
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+		//type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -140,28 +150,42 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn join_game(origin: OriginFor<T>, game_index: u32) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
-			let game = match Self::games(game_index) {
-				Some(game) => game,
-				None => return Err(Error::<T>::GameDoesNotExist.into()),
-			};
-			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
-			ensure!(game.payout_addresses.1 == None, Error::<T>::GameFull);
-			let bet = game.bet;
-			let transfer_amount = bet.saturating_add(Self::safeguard_deposit());
-			T::Currency::transfer(&caller, &Self::account_id(), transfer_amount, KeepAlive)?;
-			let host = game.payout_addresses.0;
-			let new_game = Game {
-				bet: game.bet,
-				payout_addresses: (host, Some(caller.clone())),
-				ended: game.ended,
-				handshake: (None, None),
-			};
-			Games::<T>::insert(game_index, new_game);
+
+			// let game = match Self::games(game_index) {
+			// 	Some(game) => game,
+			// 	None => return Err(Error::<T>::GameDoesNotExist.into()),
+			// };
+			// ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
+			// ensure!(game.payout_addresses.1 == None, Error::<T>::GameFull);
+			// let bet = game.bet;
+			// let transfer_amount = bet.saturating_add(Self::safeguard_deposit());
+			// T::Currency::transfer(&caller, &Self::account_id(), transfer_amount, KeepAlive)?;
+			// let host = game.payout_addresses.0;
+			// let new_game = Game {
+			// 	bet: game.bet,
+			// 	payout_addresses: (host, Some(caller.clone())),
+			// 	ended: game.ended,
+			// 	handshake: (None, None),
+			// };
+			//Games::<T>::insert(game_index, new_game);
+
+			//TBD: Which one is better ? This or the commented out code above ?
+
+			Games::<T>::try_mutate(game_index, |game| -> DispatchResult {
+				let mut game = game.as_mut().ok_or_else(|| Error::<T>::GameDoesNotExist)?;
+				ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
+				ensure!(game.payout_addresses.1 == None, Error::<T>::GameFull);
+				let bet = game.bet;
+				let transfer_amount = bet.saturating_add(Self::safeguard_deposit());
+				T::Currency::transfer(&caller, &Self::account_id(), transfer_amount, KeepAlive)?;
+				game.payout_addresses.1 = Some(caller.clone());
+				Ok(())
+			})?;
+
 			Self::deposit_event(Event::PlayerJoined { game_index, player: caller });
 			Ok(())
 		}
 
-		///TBD: How can we avoid someone to end a running game and steal funds to a prefered winner account?
 		#[pallet::call_index(2)]
 		#[pallet::weight(0)]
 		pub fn end_game(
@@ -191,59 +215,64 @@ pub mod pallet {
 			ensure!(winner == host || winner == joiner, Error::<T>::NotAPlayer);
 
 			// Update handshake and avoid writing to storage if already set
-			let mut new_handshake = game.handshake;
-			let mut end_game = true;
-			if caller == host {
-				if new_handshake.0 == None {
-					new_handshake.0 = Some(winner.clone());
-				} else {
-					return Err(Error::<T>::HandshakeAlreadySet.into());
-				}
-			}
-			if caller == joiner {
-				if new_handshake.1 == None {
-					new_handshake.1 = Some(winner.clone());
-				} else {
-					return Err(Error::<T>::HandshakeAlreadySet.into());
-				}
-			}
 
-			// Check if both players have agreed on the winner, tra
+			let new_handshake = match Self::update_handshake(
+				game.handshake,
+				caller.clone(),
+				host.clone(),
+				winner.clone(),
+			) {
+				Ok(handshake) => handshake,
+				Err(err) => return Err(err),
+			};
+
+			// Check if both players have agreed on the winner
+			let mut winner_agreed = true;
 			if new_handshake.0 == None || new_handshake.1 == None {
 				Self::deposit_event(Event::WinnerProposed {
 					game_index,
 					winner: winner.clone(),
 					proposer: caller.clone(),
 				});
-				end_game = false;
+				winner_agreed = false;
 			} else if new_handshake.0 != new_handshake.1 {
 				Self::deposit_event(Event::MediationRequested { game_index, proposer: caller });
-				end_game = false;
+				winner_agreed = false;
 			}
 
 			// Update game and write to storage
 			let new_game = Game {
 				bet: game.bet,
 				payout_addresses: (Some(host.clone()), Some(joiner.clone())),
-				ended: end_game.clone(),
+				ended: winner_agreed.clone(),
 				handshake: new_handshake,
 			};
 			Games::<T>::insert(game_index, new_game);
 
-			if !end_game {
-				return Ok(());
-			}
-			// Both players have agreed on the winner, transfer jackpot and safeguard deposit
-			let jackpot = game.bet.saturating_mul(2u32.into());
-			let safeguard_deposit = Self::safeguard_deposit();
+			if winner_agreed {
+				// Both players have agreed on the winner, transfer jackpot and safeguard deposit
+				let jackpot = game.bet.saturating_mul(2u32.into());
+				let safeguard_deposit = Self::safeguard_deposit();
 
-			// TBD: BatchTransfer? Better to add logic and add total transfer amount ?
-			let _ =
-				T::Currency::transfer(&Self::account_id(), &host, safeguard_deposit, KeepAlive)?;
-			let _ =
-				T::Currency::transfer(&Self::account_id(), &joiner, safeguard_deposit, KeepAlive)?;
-			let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
-			Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
+				// TBD: BatchTransfer? Better to add logic and add total transfer amount ?
+				let _ = T::Currency::transfer(
+					&Self::account_id(),
+					&host,
+					safeguard_deposit,
+					KeepAlive,
+				)?;
+				let _ = T::Currency::transfer(
+					&Self::account_id(),
+					&joiner,
+					safeguard_deposit,
+					KeepAlive,
+				)?;
+				let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
+				Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
+
+				return Ok(())
+			}
+
 			Ok(())
 		}
 
@@ -273,7 +302,7 @@ pub mod pallet {
 				None => return Err(Error::<T>::GameDoesNotExist.into()),
 			};
 			ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
-			// TBD: Is this pattern correct? Create a new game and insert it or could I update the parameters of currently saved one
+
 			let new_game = Game {
 				bet: game.bet,
 				payout_addresses: game.payout_addresses,
@@ -311,5 +340,29 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
 	pub fn account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
+	}
+
+	fn update_handshake(
+		handshake: (Option<T::AccountId>, Option<T::AccountId>),
+		caller: T::AccountId,
+		host: T::AccountId,
+		winner: T::AccountId,
+	) -> Result<(Option<T::AccountId>, Option<T::AccountId>), DispatchError> {
+		// Update handshake and avoid writing to storage if already set
+		let mut new_handshake = handshake;
+		if caller == host {
+			if new_handshake.0 == None {
+				new_handshake.0 = Some(winner.clone());
+			} else {
+				return Err(Error::<T>::HandshakeAlreadySet.into())
+			}
+		} else {
+			if new_handshake.1 == None {
+				new_handshake.1 = Some(winner.clone());
+			} else {
+				return Err(Error::<T>::HandshakeAlreadySet.into())
+			}
+		}
+		Ok(new_handshake)
 	}
 }

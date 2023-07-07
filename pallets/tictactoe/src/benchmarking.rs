@@ -10,9 +10,9 @@ use frame_benchmarking::{
 	v2::*,
 };
 use frame_support::{
+	sp_runtime::traits::{Bounded, Zero},
 	storage::bounded_vec::BoundedVec,
 	traits::{EnsureOrigin, OnInitialize},
-    sp_runtime::traits::{Bounded, Zero}
 };
 use frame_system::RawOrigin;
 
@@ -24,14 +24,16 @@ mod benchmarks {
 	use super::*;
 	//n: Linear<0, 100>
 
-    #[benchmark]
-    fn create_game() {
-        let caller: T::AccountId = whitelisted_caller();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        let bet = T::Currency::minimum_balance();
-        #[extrinsic_call]
-        start_game(RawOrigin::Signed(caller), bet);
-    }
+	#[benchmark]
+	fn create_game() {
+		let caller: T::AccountId = whitelisted_caller();
+		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+		let bet = T::Currency::minimum_balance();
+		#[extrinsic_call]
+		start_game(RawOrigin::Signed(caller), bet);
+	}
 
+	//TBD How to achieve a state ? Create a game and then call join for measuring weight.
+	
 	impl_benchmark_test_suite!(Tictactoe, crate::mock::new_test_ext(), crate::mock::Test);
 }

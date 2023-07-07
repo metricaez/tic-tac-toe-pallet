@@ -3,7 +3,7 @@ use crate as pallet_tictactoe;
 
 use frame_support::{
 	parameter_types,
-	traits::{ConstU32, ConstU64, },
+	traits::{ConstU32, ConstU64},
 };
 
 use sp_core::H256;
@@ -23,7 +23,7 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system,
-        Balances: pallet_balances,
+		Balances: pallet_balances,
 		Tictactoe: pallet_tictactoe,
 	}
 );
@@ -68,7 +68,7 @@ impl pallet_balances::Config for Test {
 	type FreezeIdentifier = ();
 	type MaxFreezes = ();
 	type MaxHolds = ();
-    type HoldIdentifier = ();
+	type HoldIdentifier = ();
 }
 
 parameter_types! {
@@ -84,10 +84,10 @@ impl pallet_tictactoe::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 	pallet_balances::GenesisConfig::<Test> {
 		///TBD: How to fund pallet account?
-		balances: vec![(1, 100), (2, 100), (3, 100), (4, 100), (5, 100),],
+		balances: vec![(1, 100), (2, 100), (3, 100), (4, 100), (5, 100)],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
