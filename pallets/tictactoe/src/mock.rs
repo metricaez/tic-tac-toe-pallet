@@ -79,7 +79,7 @@ impl pallet_tictactoe::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = TictactoePalletId;
 	type Currency = Balances;
-	//type WeightInfo = ();
+	type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.

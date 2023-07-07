@@ -22,18 +22,21 @@ type BalanceOf<T> =
 #[benchmarks]
 mod benchmarks {
 	use super::*;
-	//n: Linear<0, 100>
 
 	#[benchmark]
 	fn create_game() {
 		let caller: T::AccountId = whitelisted_caller();
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		let bet = T::Currency::minimum_balance();
+		let game_index:u32 = 0;
 		#[extrinsic_call]
-		start_game(RawOrigin::Signed(caller), bet);
+		create_game(RawOrigin::Signed(caller), bet);
+
+		assert_eq!(Tictactoe::<T>::games(game_index).unwrap().bet, bet);
 	}
 
+
 	//TBD How to achieve a state ? Create a game and then call join for measuring weight.
-	
+
 	impl_benchmark_test_suite!(Tictactoe, crate::mock::new_test_ext(), crate::mock::Test);
 }

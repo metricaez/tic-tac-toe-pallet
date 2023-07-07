@@ -30,8 +30,8 @@ use frame_support::{
 
 pub use pallet::*;
 
-// pub mod weights;
-// pub use weights::*;
+pub mod weights;
+pub use weights::*;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -69,7 +69,7 @@ pub mod pallet {
 		/// Event emission
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-		//type WeightInfo: WeightInfo;
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -125,8 +125,8 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
-		#[pallet::weight(0)]
-		pub fn start_game(origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult {
+		#[pallet::weight(T::WeightInfo::create_game())]
+		pub fn create_game(origin: OriginFor<T>, bet: BalanceOf<T>) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
 			ensure!(!bet.is_zero(), Error::<T>::CantBeZero);
 			let transfer_amount = bet.saturating_add(Self::safeguard_deposit());

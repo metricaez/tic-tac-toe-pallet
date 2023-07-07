@@ -282,7 +282,7 @@ impl pallet_tictactoe::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = TictactoePalletId;
 	type Currency = Balances;
-	//type WeightInfo = ();
+	type WeightInfo = pallet_tictactoe::weights::SubstrateWeight<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

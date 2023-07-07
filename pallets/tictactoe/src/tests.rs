@@ -50,7 +50,7 @@ fn create_game_works() {
 		let safeguard_deposit = 1;
 
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		System::assert_last_event((Event::GameCreated { game_index: 0 }).into());
 		assert_eq!(Balances::free_balance(&host), initial_balance - bet - safeguard_deposit);
 		assert_eq!(Tictactoe::game_index(), 1);
@@ -68,10 +68,10 @@ fn create_game_fails_with_zero_bet() {
 		let initial_balance = Balances::free_balance(&host);
 		let bet = 0;
 		assert_noop!(
-			Tictactoe::start_game(RuntimeOrigin::signed(host), bet),
+			Tictactoe::create_game(RuntimeOrigin::signed(host), bet),
 			Error::<Test>::CantBeZero
 		);
-		assert!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet).is_err());
+		assert!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet).is_err());
 		assert_eq!(Balances::free_balance(&host), initial_balance);
 		assert_eq!(Tictactoe::game_index(), 0);
 		assert!(Tictactoe::games(0).is_none());
@@ -85,7 +85,7 @@ fn create_game_fails_insufficient_funds() {
 		let host = 1;
 		let initial_balance = Balances::free_balance(&host);
 		let bet = initial_balance + 1;
-		assert!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet).is_err());
+		assert!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet).is_err());
 	});
 }
 
@@ -99,7 +99,7 @@ fn join_a_game_works() {
 		let bet = 10;
 		let safeguard_deposit = 1;
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 
 		let initial_balance = Balances::free_balance(&joiner);
 		// Game id = 0 since first game created
@@ -136,7 +136,7 @@ fn join_a_full_game_fails() {
 		let joiner = 2;
 		let malicious_joiner = 3;
 		let bet = 10;
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
 		assert_noop!(
 			Tictactoe::join_game(RuntimeOrigin::signed(malicious_joiner), 0),
@@ -157,7 +157,7 @@ fn join_games_without_funds_fails() {
 			joiner_balance - 5
 		));
 		let bet = 10;
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		assert!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0).is_err());
 	});
 }
@@ -180,7 +180,7 @@ fn end_game_works() {
 		let safeguard_deposit = 1;
 
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
 
 		let host_init_balance = Balances::free_balance(&host);
@@ -249,7 +249,7 @@ fn mediation_is_applied() {
 		let safeguard_deposit = 1;
 
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
 
 		let host_proposed_winner = host;
@@ -287,7 +287,7 @@ fn invalid_accounts_fail_to_end() {
 		let joiner = 2;
 		let invalid_account = 3;
 		let bet: u64 = 10;
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
 		assert_noop!(
 			Tictactoe::end_game(RuntimeOrigin::signed(invalid_account), 0, host),
@@ -306,7 +306,7 @@ fn non_sudo_cant_force_end() {
 		let host = 1;
 		let joiner = 2;
 		let bet: u64 = 10;
-		assert_ok!(Tictactoe::start_game(RuntimeOrigin::signed(host), bet));
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
 		assert!(Tictactoe::force_end_game(RuntimeOrigin::signed(host), 0, host, host).is_err());
 	});
