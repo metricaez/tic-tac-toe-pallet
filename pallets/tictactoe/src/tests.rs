@@ -312,3 +312,39 @@ fn non_sudo_cant_force_end() {
 	});
 }
 
+#[test]
+fn withdraw_funds_works() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		//Fund pallet account
+		let pallet_funding = 50;
+		assert_ok!(Balances::transfer(
+			RuntimeOrigin::signed(3),
+			Tictactoe::account_id(),
+			pallet_funding
+		));
+
+		let beneficiary = 1;
+		let amount: u64 = 10;
+
+		assert_ok!(Tictactoe::withdraw_funds(RuntimeOrigin::root(), amount, beneficiary));
+		System::assert_last_event((Event::FundsWithdrawn { amount, beneficiary }).into());
+	});
+}
+
+#[test]
+fn non_sudo_cant_withdraw() {
+	new_test_ext().execute_with(|| {
+		//Fund pallet account
+		let pallet_funding = 50;
+		assert_ok!(Balances::transfer(
+			RuntimeOrigin::signed(3),
+			Tictactoe::account_id(),
+			pallet_funding
+		));
+		let beneficiary = 1;
+		let amount: u64 = 10;
+		assert!(Tictactoe::withdraw_funds(RuntimeOrigin::signed(beneficiary), amount, beneficiary)
+			.is_err());
+	});
+}

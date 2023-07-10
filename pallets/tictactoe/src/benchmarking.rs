@@ -63,15 +63,19 @@ mod benchmarks {
 		let caller: T::AccountId = whitelisted_caller();
 		T::Currency::make_free_balance_be(&caller, 10000000u32.into());
 		let _ = Tictactoe::<T>::join_game(RawOrigin::Signed(caller.clone()).into(), 0u32);
-		
-		assert!(Tictactoe::<T>::games(0).unwrap().bet == bet);
-		assert_eq!(Tictactoe::<T>::games(0).unwrap().payout_addresses, (Some(host.clone()),Some(caller.clone())));
 
-		let _ = Tictactoe::<T>::end_game(RawOrigin::Signed(host.clone()).into(), 0u32, host.clone());
+		assert!(Tictactoe::<T>::games(0).unwrap().bet == bet);
+		assert_eq!(
+			Tictactoe::<T>::games(0).unwrap().payout_addresses,
+			(Some(host.clone()), Some(caller.clone()))
+		);
+
+		let _ =
+			Tictactoe::<T>::end_game(RawOrigin::Signed(host.clone()).into(), 0u32, host.clone());
 		#[extrinsic_call]
 		end_game(RawOrigin::Signed(caller.clone()), 0u32, host.clone());
 
-		assert_eq!(Tictactoe::<T>::games(0).unwrap().handshake, (Some(host.clone()),Some(host)));
+		assert_eq!(Tictactoe::<T>::games(0).unwrap().handshake, (Some(host.clone()), Some(host)));
 	}
 
 	impl_benchmark_test_suite!(Tictactoe, crate::mock::new_test_ext(), crate::mock::Test);
