@@ -35,8 +35,7 @@ pub use frame_support::{
 		},
 		IdentityFee, Weight,
 	},
-	StorageValue,
-	PalletId,
+	PalletId, StorageValue,
 };
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -283,7 +282,7 @@ impl pallet_tictactoe::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = TictactoePalletId;
 	type Currency = Balances;
-	//type WeightInfo = ();
+	type WeightInfo = pallet_tictactoe::weights::SubstrateWeight<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
