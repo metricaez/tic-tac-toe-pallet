@@ -85,7 +85,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// An example dispatchable that may throw a custom error.
+		/// An example dispatchable that may throw a custom error
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::cause_error())]
 		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
