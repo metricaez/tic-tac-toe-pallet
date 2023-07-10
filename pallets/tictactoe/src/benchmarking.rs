@@ -78,5 +78,56 @@ mod benchmarks {
 		assert_eq!(Tictactoe::<T>::games(0).unwrap().handshake, (Some(host.clone()), Some(host)));
 	}
 
+	#[benchmark]
+	fn set_safeguard_deposit() {
+		let deposit_value = 1000u32.into();
+		#[extrinsic_call]
+		set_safeguard_deposit(RawOrigin::Root, deposit_value);
+		assert_eq!(Tictactoe::<T>::safeguard_deposit(), deposit_value);
+	}
+
+	#[benchmark]
+	fn force_end_game() {
+		T::Currency::make_free_balance_be(&Tictactoe::<T>::account_id(), 1000u32.into());
+
+		let deposit_value = 1000u32.into();
+		let _ = Tictactoe::<T>::set_safeguard_deposit(RawOrigin::Root.into(), deposit_value);
+
+		let initial_balance = 10000000u32.into();
+		let host = account("host", 0, 0);
+		T::Currency::make_free_balance_be(&host, initial_balance);
+		let joiner = account("joiner", 0, 0);
+		T::Currency::make_free_balance_be(&joiner, initial_balance);
+
+		let bet = 1000u32.into();
+		let _ = Tictactoe::<T>::create_game(RawOrigin::Signed(host.clone()).into(), bet);
+		let _ = Tictactoe::<T>::join_game(RawOrigin::Signed(joiner.clone()).into(), 0u32);
+
+		let _ =
+			Tictactoe::<T>::end_game(RawOrigin::Signed(host.clone()).into(), 0u32, host.clone());
+		let _ = Tictactoe::<T>::end_game(
+			RawOrigin::Signed(joiner.clone()).into(),
+			0u32,
+			joiner.clone(),
+		);
+
+		assert_eq!(Tictactoe::<T>::games(0).unwrap().handshake, (Some(host.clone()), Some(joiner)));
+
+		#[extrinsic_call]
+		force_end_game(RawOrigin::Root, 0u32, host.clone(), host.clone());
+
+		assert_eq!(T::Currency::free_balance(&host), initial_balance.saturating_add(bet));
+	}
+
+	#[benchmark]
+	fn withdraw_funds() {
+		T::Currency::make_free_balance_be(&Tictactoe::<T>::account_id(), 100000u32.into());
+		let beneficiary: T::AccountId = account("beneficiary", 0, 0);
+		let amount = 1000u32.into();
+		#[extrinsic_call]
+		withdraw_funds(RawOrigin::Root, amount, beneficiary.clone());
+		assert_eq!(T::Currency::free_balance(&beneficiary), amount);
+	}
+
 	impl_benchmark_test_suite!(Tictactoe, crate::mock::new_test_ext(), crate::mock::Test);
 }

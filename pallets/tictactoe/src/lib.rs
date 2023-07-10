@@ -149,7 +149,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(1)]
-		#[pallet::weight(0)]
+		#[pallet::weight(T::WeightInfo::join_game())]
 		pub fn join_game(origin: OriginFor<T>, game_index: u32) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
 
@@ -189,7 +189,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(2)]
-		#[pallet::weight(0)]
+		#[pallet::weight(T::WeightInfo::end_game())]
 		pub fn end_game(
 			origin: OriginFor<T>,
 			game_index: u32,
@@ -279,7 +279,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(3)]
-		#[pallet::weight(0)]
+		#[pallet::weight(T::WeightInfo::set_safeguard_deposit())]
 		pub fn set_safeguard_deposit(
 			origin: OriginFor<T>,
 			deposit: BalanceOf<T>,
@@ -291,7 +291,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(4)]
-		#[pallet::weight(0)]
+		#[pallet::weight(T::WeightInfo::force_end_game())]
 		pub fn force_end_game(
 			origin: OriginFor<T>,
 			game_index: u32,
@@ -326,7 +326,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(5)]
-		#[pallet::weight(0)]
+		#[pallet::weight(T::WeightInfo::withdraw_funds())]
 		pub fn withdraw_funds(
 			origin: OriginFor<T>,
 			amount: BalanceOf<T>,
