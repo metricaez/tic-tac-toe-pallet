@@ -14,6 +14,7 @@ fn initial_state() {
 #[test]
 fn set_safeguard_works() {
 	new_test_ext().execute_with(|| {
+		// Since checking events, we need to set block number for events to be deposited.
 		System::set_block_number(1);
 		let safeguard_deposit = 1;
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
@@ -44,14 +45,21 @@ fn create_game_works() {
 		let bet = 10;
 		let safeguard_deposit = 1;
 
+		// Set safeguard deposit to check that is correctly transferred to pallet account
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
+		// Create game
 		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
+		// Check that event was emitted. First game created, so index is 0.
 		System::assert_last_event((Event::GameCreated { game_index: 0 }).into());
+		// Check that host balance was correctly updated
 		assert_eq!(Balances::free_balance(&host), initial_balance - bet - safeguard_deposit);
+		// Check that game_index was correctly incremented.
 		assert_eq!(Tictactoe::game_index(), 1);
+		// Check created game instance. Game_id = 0 since first game created.
 		assert_eq!(Tictactoe::games(0).unwrap().bet, bet);
 		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (Some(host), None));
 		assert_eq!(Tictactoe::games(0).unwrap().ended, false);
+		// Check that funds were correctly transferred to pallet account.
 		assert_eq!(Balances::free_balance(Tictactoe::account_id()), bet + safeguard_deposit);
 	});
 }
@@ -66,6 +74,7 @@ fn create_game_fails_with_zero_bet() {
 			Tictactoe::create_game(RuntimeOrigin::signed(host), bet),
 			Error::<Test>::CantBeZero
 		);
+		// Check that no state was changed after failed extrinsic.
 		assert!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet).is_err());
 		assert_eq!(Balances::free_balance(&host), initial_balance);
 		assert_eq!(Tictactoe::game_index(), 0);
@@ -94,17 +103,20 @@ fn join_a_game_works() {
 		let bet = 10;
 		let safeguard_deposit = 1;
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
+		// To join a game, it must be created first.
 		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 
 		let initial_balance = Balances::free_balance(&joiner);
 		// Game id = 0 since first game created
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
 		System::assert_last_event((Event::PlayerJoined { game_index: 0, player: joiner }).into());
+		// Check that storage and balances were correctly updated.
 		assert_eq!(Balances::free_balance(&joiner), initial_balance - bet - safeguard_deposit);
 		assert_eq!(Tictactoe::game_index(), 1);
 		assert_eq!(Tictactoe::games(0).unwrap().bet, bet);
 		assert_eq!(Tictactoe::games(0).unwrap().payout_addresses, (Some(host), Some(joiner)));
 		assert_eq!(Tictactoe::games(0).unwrap().ended, false);
+		// Pallet must hold two bets and two safeguard deposits since only one game is created.
 		assert_eq!(
 			Balances::free_balance(Tictactoe::account_id()),
 			(bet * 2) + (safeguard_deposit * 2)
@@ -174,6 +186,7 @@ fn end_game_works() {
 		let bet: u64 = 10;
 		let safeguard_deposit = 1;
 
+		// To end a game, it must be created and joined first.
 		assert_ok!(Tictactoe::set_safeguard_deposit(RuntimeOrigin::root(), safeguard_deposit));
 		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
 		assert_ok!(Tictactoe::join_game(RuntimeOrigin::signed(joiner), 0));
@@ -185,27 +198,20 @@ fn end_game_works() {
 
 		let proposed_winner = host;
 
+		// Host proposes a winner, an event is emitted and handshake is updated.
 		assert_ok!(Tictactoe::end_game(RuntimeOrigin::signed(host), 0, proposed_winner));
 		System::assert_last_event(
 			(Event::WinnerProposed { game_index: 0, winner: proposed_winner, proposer: host })
 				.into(),
 		);
 
-		println!(
-			"Handshake after player 1 calls ext: {:?}",
-			Tictactoe::games(0).unwrap().handshake
-		);
-
+		// Joiner proposes same winner, since consensus is reached, game is ended.
 		assert_ok!(Tictactoe::end_game(RuntimeOrigin::signed(joiner), 0, proposed_winner));
 		System::assert_last_event(
 			(Event::GameEnded { game_index: 0, winner: proposed_winner, jackpot: bet * 2 }).into(),
 		);
 
-		println!(
-			"Handshake after player 2 calls ext : {:?}",
-			Tictactoe::games(0).unwrap().handshake
-		);
-
+		// Check that balances and storage were correctly updated.
 		assert_eq!(Balances::free_balance(&host), host_init_balance + safeguard_deposit + bet * 2);
 		assert_eq!(Balances::free_balance(&joiner), joiner_init_balance + safeguard_deposit);
 
@@ -220,6 +226,19 @@ fn end_game_works() {
 		assert_noop!(
 			Tictactoe::join_game(RuntimeOrigin::signed(new_joiner), 0),
 			Error::<Test>::GameAlreadyEnded
+		);
+	});
+}
+
+#[test]
+fn end_a_game_with_one_player_fails() {
+	new_test_ext().execute_with(|| {
+		let host = 1;
+		let bet: u64 = 10;
+		assert_ok!(Tictactoe::create_game(RuntimeOrigin::signed(host), bet));
+		assert_noop!(
+			Tictactoe::end_game(RuntimeOrigin::signed(host), 0, host),
+			Error::<Test>::BadAddress
 		);
 	});
 }
@@ -250,6 +269,7 @@ fn mediation_is_applied() {
 		let host_proposed_winner = host;
 		let joiner_proposed_winner = joiner;
 
+		// For mediation to be applied, both players must propose different winners.
 		assert_ok!(Tictactoe::end_game(RuntimeOrigin::signed(host), 0, host_proposed_winner));
 		assert_ok!(Tictactoe::end_game(RuntimeOrigin::signed(joiner), 0, joiner_proposed_winner));
 		System::assert_last_event(
@@ -259,7 +279,7 @@ fn mediation_is_applied() {
 		assert_eq!(Balances::free_balance(&host), host_init_balance - bet - safeguard_deposit);
 		assert_eq!(Balances::free_balance(&joiner), joiner_init_balance - bet - safeguard_deposit);
 
-		// Assuming host was correct.
+		// Assuming host was correct. Force end game on favor of host.
 		assert_ok!(Tictactoe::force_end_game(RuntimeOrigin::root(), 0, host_proposed_winner, host));
 		System::assert_last_event(
 			(Event::GameEnded { game_index: 0, winner: host_proposed_winner, jackpot: bet * 2 })
