@@ -9,14 +9,9 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-///TBD: error: internal compiler error: encountered incremental compilation error with
-/// mir_built(76e5305fbe3bf3e0-1cbbbe6365e28f21)
-/// TBD: Move logic out of call ?
-/// TBD: Put or mutate game in storage?
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
-/// TBD: difference of using sp_runtime from frame_support or from sp_runtime directly
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
@@ -39,7 +34,6 @@ type BalanceOf<T> =
 #[derive(
 	Clone, Encode, Decode, Default, PartialEq, Copy, RuntimeDebug, TypeInfo, MaxEncodedLen,
 )]
-//TBD: If transfer of jackpot breaks due to existencial deposits, add fee param.
 pub struct Game<Balance, AccountId> {
 	bet: Balance,
 	payout_addresses: (Option<AccountId>, Option<AccountId>),
@@ -95,7 +89,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// The game does not exist.
 		GameDoesNotExist,
-		/// The gaame index has overflowed.
+		/// The game index has overflowed.
 		IndexOverflow,
 		/// The game has already ended.
 		GameAlreadyEnded,
@@ -153,26 +147,6 @@ pub mod pallet {
 		pub fn join_game(origin: OriginFor<T>, game_index: u32) -> DispatchResult {
 			let caller = ensure_signed(origin.clone())?;
 
-			// let game = match Self::games(game_index) {
-			// 	Some(game) => game,
-			// 	None => return Err(Error::<T>::GameDoesNotExist.into()),
-			// };
-			// ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
-			// ensure!(game.payout_addresses.1 == None, Error::<T>::GameFull);
-			// let bet = game.bet;
-			// let transfer_amount = bet.saturating_add(Self::safeguard_deposit());
-			// T::Currency::transfer(&caller, &Self::account_id(), transfer_amount, KeepAlive)?;
-			// let host = game.payout_addresses.0;
-			// let new_game = Game {
-			// 	bet: game.bet,
-			// 	payout_addresses: (host, Some(caller.clone())),
-			// 	ended: game.ended,
-			// 	handshake: (None, None),
-			// };
-			//Games::<T>::insert(game_index, new_game);
-
-			//TBD: Which one is better ? This or the commented out code above ?
-
 			Games::<T>::try_mutate(game_index, |game| -> DispatchResult {
 				let mut game = game.as_mut().ok_or_else(|| Error::<T>::GameDoesNotExist)?;
 				ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
@@ -196,7 +170,6 @@ pub mod pallet {
 			winner: T::AccountId,
 		) -> DispatchResult {
 			let caller = ensure_signed(origin)?;
-			//let _ = Self::do_end_game(caller, winner, game_index);
 
 			// Retrieve game
 			let game = match Self::games(game_index) {
