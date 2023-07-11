@@ -1,4 +1,26 @@
-
+//! A tic-tac-toe pallet that works as a proof of concept for a secure jackpot storage while games
+//! are being played.
+//!
+//! With this pallet, two players can agree to play a game while the pallet holds a certain amount
+//! of funds from each one of them called “bet”, the winner of the game will take the “jackpot:
+//! which consist of both his bet and the opponent bet.
+//!
+//! A player creates a game with “create_game” call and set the bet value, this amount will be
+//! transferred into the pallet and held while the game is being disputed. This player is referred
+//! as the “host” Another player can join an existing game with “join_game”, it must have enough
+//! funds to pay for the bet amount set by the game creator. This player is referred as the
+//! “joiner”. Both the host and the joiner must also deposit a safeguard deposit to be slashed in
+//! case of bad behavior.
+//!
+//! Game logic is not tracked on chain so the winner must be stated when finishing a game, to avoid
+//! users closing games in a malicious way, both the host and the joiner must propose a winner.
+//! If the proposed winners match, jackpot is sent to that winner and safeguard deposit are released
+//! and game is automatically ended. If the proposed winners do not match, a root account is able to
+//! force-end a game, it is assumed that this root user is a trusted user that can review the game
+//! logic and history and decide who the legitimate winner is.
+//!
+//! Safeguard deposit can be slashed from the player that proposed the wrong winner, slashed funds
+//! are held in the pallet are can be withdrawn by the sudo user.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -131,7 +153,6 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-
 		/// Create a new game.
 		/// The caller will be the host of the game.
 		/// The bet amount will set the value to other user to join the game.
@@ -142,7 +163,8 @@ pub mod pallet {
 			let caller = ensure_signed(origin.clone())?;
 			ensure!(!bet.is_zero(), Error::<T>::CantBeZero);
 
-			// Transfer bet amount and safeguard deposit to pallet account to ensure creator account has enough funds.
+			// Transfer bet amount and safeguard deposit to pallet account to ensure creator account
+			// has enough funds.
 			let transfer_amount = bet.saturating_add(Self::safeguard_deposit());
 			T::Currency::transfer(&caller, &Self::account_id(), transfer_amount, KeepAlive)?;
 
@@ -164,7 +186,8 @@ pub mod pallet {
 
 		/// Join a game by it's index.
 		/// The caller will be the joiner of the game.
-		/// The alredy set bet and safeguard deposit amount will be transferred to the pallet account.
+		/// The alredy set bet and safeguard deposit amount will be transferred to the pallet
+		/// account.
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::join_game())]
 		pub fn join_game(origin: OriginFor<T>, game_index: u32) -> DispatchResult {
@@ -189,7 +212,8 @@ pub mod pallet {
 		/// End a game by it's index.
 		/// Game ends when both players agree on the winner or when root forces the end of the game.
 		/// Expected to be called by the two players of the game.
-		/// Each caller proposes a winner. If they match jackpot is sent, otherwise mediation is requested.
+		/// Each caller proposes a winner. If they match jackpot is sent, otherwise mediation is
+		/// requested.
 		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::end_game())]
 		pub fn end_game(
@@ -287,9 +311,10 @@ pub mod pallet {
 
 		/// Force end a game by it's index.
 		/// Only root can force end a game.
-		/// The winner and deposit beneficiary will receive the jackpot and safeguard deposit respectively.
-		/// The game will be marked as ended.
-		/// This function is expected to be called in case of dispute and game logic must be handled off-chain.
+		/// The winner and deposit beneficiary will receive the jackpot and safeguard deposit
+		/// respectively. The game will be marked as ended.
+		/// This function is expected to be called in case of dispute and game logic must be handled
+		/// off-chain.
 		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::force_end_game())]
 		pub fn force_end_game(
@@ -299,21 +324,22 @@ pub mod pallet {
 			deposit_benefiicary: T::AccountId,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			
+
 			Games::<T>::try_mutate(game_index, |game| -> DispatchResult {
 				let mut game = game.as_mut().ok_or_else(|| Error::<T>::GameDoesNotExist)?;
 				ensure!(!game.ended, Error::<T>::GameAlreadyEnded);
-				
+
 				// Update and end game. Set handshake to signal decision.
 				game.ended = true;
 				game.handshake = (Some(winner.clone()), Some(winner.clone()));
 
-				// Transfer jackpot and safeguard deposit, bad actor account will not receive the safeguard deposit.
+				// Transfer jackpot and safeguard deposit, bad actor account will not receive the
+				// safeguard deposit.
 				let jackpot = game.bet.saturating_mul(2u32.into());
 				let safeguard_deposit = Self::safeguard_deposit();
 				Self::transfer_from_pallet(deposit_benefiicary.clone(), safeguard_deposit)?;
 				Self::transfer_from_pallet(winner.clone(), jackpot)?;
-				
+
 				Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
 				Ok(())
 			})?;
@@ -339,7 +365,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	
 	/// Returns the pallet account id.
 	/// Store in variable to avoid calling the function multiple times.
 	pub fn account_id() -> T::AccountId {
@@ -347,10 +372,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Send funds from the pallet account to a beneficiary.
-	fn transfer_from_pallet(
-		beneficiary: T::AccountId,
-		amount: BalanceOf<T>,
-	) -> DispatchResult {
+	fn transfer_from_pallet(beneficiary: T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 		T::Currency::transfer(&Self::account_id(), &beneficiary, amount, KeepAlive)?;
 		Ok(())
 	}
@@ -380,6 +402,4 @@ impl<T: Config> Pallet<T> {
 		}
 		Ok(new_handshake)
 	}
-
-	
 }

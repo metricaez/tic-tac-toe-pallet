@@ -1,7 +1,6 @@
 use crate::{mock::*, Error, Event};
 use frame_support::{assert_noop, assert_ok};
 
-
 #[test]
 fn initial_state() {
 	new_test_ext().execute_with(|| {
