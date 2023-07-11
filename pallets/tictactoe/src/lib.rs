@@ -258,19 +258,11 @@ pub mod pallet {
 				let jackpot = game.bet.saturating_mul(2u32.into());
 				let safeguard_deposit = Self::safeguard_deposit();
 
-				let _ = T::Currency::transfer(
-					&Self::account_id(),
-					&host,
-					safeguard_deposit,
-					KeepAlive,
-				)?;
-				let _ = T::Currency::transfer(
-					&Self::account_id(),
-					&joiner,
-					safeguard_deposit,
-					KeepAlive,
-				)?;
-				let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
+				// Transfer funds.
+				Self::transfer_from_pallet(host, safeguard_deposit)?;
+				Self::transfer_from_pallet(joiner, safeguard_deposit)?;
+				Self::transfer_from_pallet(winner.clone(), jackpot)?;
+
 				Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
 
 				return Ok(())
@@ -319,14 +311,9 @@ pub mod pallet {
 				// Transfer jackpot and safeguard deposit, bad actor account will not receive the safeguard deposit.
 				let jackpot = game.bet.saturating_mul(2u32.into());
 				let safeguard_deposit = Self::safeguard_deposit();
-				let _ = T::Currency::transfer(
-					&Self::account_id(),
-					&deposit_benefiicary,
-					safeguard_deposit,
-					KeepAlive,
-				)?;
-				let _ = T::Currency::transfer(&Self::account_id(), &winner, jackpot, KeepAlive)?;
-
+				Self::transfer_from_pallet(deposit_benefiicary.clone(), safeguard_deposit)?;
+				Self::transfer_from_pallet(winner.clone(), jackpot)?;
+				
 				Self::deposit_event(Event::GameEnded { game_index, winner, jackpot });
 				Ok(())
 			})?;
@@ -344,7 +331,7 @@ pub mod pallet {
 			beneficiary: T::AccountId,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let _ = T::Currency::transfer(&Self::account_id(), &beneficiary, amount, KeepAlive)?;
+			Self::transfer_from_pallet(beneficiary.clone(), amount)?;
 			Self::deposit_event(Event::FundsWithdrawn { amount, beneficiary });
 			Ok(())
 		}
@@ -357,6 +344,15 @@ impl<T: Config> Pallet<T> {
 	/// Store in variable to avoid calling the function multiple times.
 	pub fn account_id() -> T::AccountId {
 		T::PalletId::get().into_account_truncating()
+	}
+
+	/// Send funds from the pallet account to a beneficiary.
+	fn transfer_from_pallet(
+		beneficiary: T::AccountId,
+		amount: BalanceOf<T>,
+	) -> DispatchResult {
+		T::Currency::transfer(&Self::account_id(), &beneficiary, amount, KeepAlive)?;
+		Ok(())
 	}
 
 	/// Update handshake and avoid writing to storage if already set
@@ -384,4 +380,6 @@ impl<T: Config> Pallet<T> {
 		}
 		Ok(new_handshake)
 	}
+
+	
 }
