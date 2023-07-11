@@ -1,10 +1,6 @@
 use crate::{mock::*, Error, Event};
 use frame_support::{assert_noop, assert_ok};
 
-/// TBD: How to get pallet funds on genesis to avoid transfer to keep it live
-//TBD: Tooling for debugging and printing rather than only assertions ? How chan I see emited
-// errors or events. Print also at runtime level
-// TBD: Weights on testing ?
 
 #[test]
 fn initial_state() {
