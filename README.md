@@ -2,16 +2,6 @@
 
 A tic-tac-toe pallet built inside Substrate Node Template that works as a proof of concept for a secure jackpot storage while games are being played.
 
-With this pallet, two players can agree to play a game while the pallet holds a certain amount of funds from each one of them called “bet”, the winner of the game will take the “jackpot: which consist of both his bet and the opponent bet.
-
-A player creates a game with “create_game” call and set the bet value, this amount will be transferred into the pallet and held while the game is being disputed. This player is referred as the “host”
-Another player can join an existing game with “join_game”, it must have enough funds to pay for the bet amount set by the game creator. This player is referred as the “joiner”.
-Both the host and the joiner must also deposit a safeguard deposit to be slashed in case of bad behavior.
-
-Game logic is not tracked on chain so the winner must be stated when finishing a game, to avoid users closing games in a malicious way, both the host and the joiner must propose a winner. If the proposed winners match, jackpot is sent to that winner and safeguard deposit are released and game is automatically ended. If the proposed winners do not match, a root account is able to force-end a game, it is assumed that this root user is a trusted user that can review the game logic and history and decide who the legitimate winner is. 
-
-Safeguard deposit can be slashed from the player that proposed the wrong winner, slashed funds are held in the pallet are can be withdrawn by the sudo user.
-
 # Substrate Node Template DOCs
 
 A fresh [Substrate](https://substrate.io/) node, ready for hacking :rocket:
