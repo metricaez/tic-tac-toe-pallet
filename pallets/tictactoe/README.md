@@ -191,59 +191,7 @@ Withdraw a certain amount of funds from vault to a beneficiary account.
   * All Errors from `Currency::transfer` apply.
 </details>
 
-## RPC
-
-<details>
-<summary><h3>get_currency_to_asset_output_amount</h3></summary>
-
-Get the output amount for a fixed-input currency-to-asset trade,
-i.e. 'How much asset would I get if I paid this much currency'?
-
-#### Parameters:
-* `asset_id` – ID of the asset to be bought.
-* `currency_amount` – The amount of currency to be spent.
-</details>
-
-<details>
-<summary><h3>get_currency_to_asset_input_amount</h3></summary>
-
-Get the input amount for a fixed-output currency-to-asset trade,
-i.e. 'How much currency do I have to pay to get this much asset'?
-
-#### Parameters:
-* `asset_id` – ID of the asset to be bought.
-* `token_amount` – The amount of tokens to be bought.
-</details>
-
-<details>
-<summary><h3>get_asset_to_currency_output_amount</h3></summary>
-
-Get the output amount for a fixed-input asset-to-currency trade,
-i.e. 'How much currency would I get if I paid this much asset'?
-
-#### Parameters:
-* `asset_id` – ID of the asset to be sold.
-* `token_amount` – The amount of tokens to be spent.
-</details>
-
-<details>
-<summary><h3>get_asset_to_currency_input_amount</h3></summary>
-Get the input amount for a fixed-output currency-to-asset trade,
-i.e. 'How much asset do I have to pay to get this much currency'?
-
-#### Parameters:
-* `asset_id` – ID of the asset to be sold.
-* `token_amount` – The amount of currency to be bought.
-</details>
-
-### Errors (for all methods):
-* `ExchangeNotFound` – There is no exchange for the given `asset_id`.
-* `NotEnoughLiquidity` – There is not enough liquidity in the pool to buy the specified amount of asset/currency.
-  (applies only to fixed-output price queries).
-* `Overflow` – An overflow occurred during price computation.
-* `Unexpected` – An unexpected runtime error occurred.
-
-## How to add `pallet-dex` to a node
+## How to add `pallet-tictactoe` to a node
 
 :information_source: The pallet is compatible with Substrate version
 [polkadot-v0.9.46](https://github.com/paritytech/polkadot/releases/tag/v0.9.43).
@@ -314,41 +262,6 @@ construct_runtime!(
 );
 ```
 
-Add the RPC implementation.
-```rust
-impl_runtime_apis! {
-    // --snip--
-    impl pallet_dex_rpc_runtime_api::DexApi<Block, AssetId, Balance, AssetBalance> for Runtime {
-        fn get_currency_to_asset_output_amount(
-            asset_id: AssetId,
-            currency_amount: Balance
-        ) -> pallet_dex_rpc_runtime_api::RpcResult<AssetBalance> {
-            Dex::get_currency_to_asset_output_amount(asset_id, currency_amount)
-        }
-
-        fn get_currency_to_asset_input_amount(
-            asset_id: AssetId,
-            token_amount: AssetBalance
-        ) -> pallet_dex_rpc_runtime_api::RpcResult<Balance> {
-            Dex::get_currency_to_asset_input_amount(asset_id, token_amount)
-        }
-
-        fn get_asset_to_currency_output_amount(
-            asset_id: AssetId,
-            token_amount: AssetBalance
-        ) -> pallet_dex_rpc_runtime_api::RpcResult<Balance> {
-            Dex::get_asset_to_currency_output_amount(asset_id, token_amount)
-        }
-
-        fn get_asset_to_currency_input_amount(
-            asset_id: AssetId,
-            currency_amount: Balance
-        ) -> pallet_dex_rpc_runtime_api::RpcResult<AssetBalance> {
-            Dex::get_asset_to_currency_input_amount(asset_id, currency_amount)
-        }
-    }
-}
-```
 ## Frontend
 
 A simple React-App that allows to play a TicTacToe game and interact with the pallet running on a Node based on Substrate Template can be found [here](https://github.com/metricaez/tic-tac-toe-dapp).
